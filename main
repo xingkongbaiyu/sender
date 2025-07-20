@@ -1,0 +1,170 @@
+import requests
+import json
+import time
+
+def perform_login(username, password):
+    login_url = "https://www.boxim.online/api/login"
+    login_payload = {
+        "terminal": 0,
+        "userName": username,
+        "password": password
+    }
+    login_headers = {
+        "accept": "application/json, text/plain, */*",
+        "accept-encoding": "gzip, deflate, br, zstd",
+        "accept-language": "zh-CN,zh;q=0.9",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "host": "www.boxim.online",
+        "origin": "https://www.boxim.online/",
+        "referer": "https://www.boxim.online/",
+        "sec-ch-ua": "\"Not?A_Brand\";v=\"99\", \"Chromium\";v=\"130\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"Windows\"",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36 QuarkPC/4.2.5.446"
+    }
+    try:
+        response = requests.post(login_url, headers=login_headers, data=json.dumps(login_payload))
+        response.raise_for_status()
+        login_data = response.json()
+        if login_data.get("code") != 200:
+            raise Exception(f"登录失败：{login_data.get('message', '未知错误')}")
+        access_token = login_data.get("data", {}).get("accessToken")
+        if not access_token:
+            raise Exception("未找到accessToken")
+        print("登录成功，已获取accessToken")
+        return access_token
+    except Exception as e:
+        print(f"登录失败：{str(e)}")
+        return None
+
+def send_single_group(access_token, content, group_id):
+    send_url = "https://www.boxim.online/api/message/group/send"
+    payload = {
+        "content": content,
+        "type": 0,
+        "groupId": group_id,
+        "atUserIds": [],
+        "receipt": False
+    }
+    headers = {
+        "accept": "application/json, text/plain, */*",
+        "accept-encoding": "gzip, deflate, br, zstd",
+        "accept-language": "zh-CN,zh;q=0.9",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "host": "www.boxim.online",
+        "origin": "https://www.boxim.online/",
+        "referer": "https://www.boxim.online/",
+        "sec-ch-ua": "\"Not?A_Brand\";v=\"99\", \"Chromium\";v=\"130\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"Windows\"",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36 QuarkPC/4.2.5.446",
+        "accesstoken": access_token
+    }
+    try:
+        response = requests.post(send_url, headers=headers, data=json.dumps(payload))
+        response.raise_for_status()
+        return True, response.json()
+    except Exception as e:
+        return False, f"群聊发送失败：{str(e)}"
+
+def send_single_private(access_token, content, recv_id):
+    send_url = "https://www.boxim.online/api/message/private/send"
+    payload = {
+        "content": content,
+        "type": 0,
+        "recvId": recv_id
+    }
+    headers = {
+        "accept": "application/json, text/plain, */*",
+        "accept-encoding": "gzip, deflate, br, zstd",
+        "accept-language": "zh-CN,zh;q=0.9",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "host": "www.boxim.online",
+        "origin": "https://www.boxim.online/",
+        "referer": "https://www.boxim.online/",
+        "sec-ch-ua": "\"Not?A_Brand\";v=\"99\", \"Chromium\";v=\"130\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"Windows\"",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36 QuarkPC/4.2.5.446",
+        "accesstoken": access_token
+    }
+    try:
+        response = requests.post(send_url, headers=headers, data=json.dumps(payload))
+        response.raise_for_status()
+        return True, response.json()
+    except Exception as e:
+        return False, f"私信发送失败：{str(e)}"
+
+def send_batch(access_token, content, count, interval, is_private, target_id):
+    print(f"\n开始发送 {count} 条消息，间隔 {interval} 秒...")
+    for i in range(count):
+        if is_private:
+            success, result = send_single_private(access_token, content, target_id)
+        else:
+            success, result = send_single_group(access_token, content, target_id)
+        if success:
+            print(f"第 {i+1} 条发送成功：{result}")
+        else:
+            print(f"第 {i+1} 条发送失败：{result}")
+        time.sleep(interval)
+    print("\n当前批次发送结束")
+
+def main():
+    username = input("请输入账号：")
+    password = input("请输入密码：")
+    
+    access_token = perform_login(username, password)
+    if not access_token:
+        return
+    
+
+    while True:
+        send_type = input("请选择发送类型（1-群聊 2-私信）：").strip()
+        if send_type in ["1", "2"]:
+            is_private = (send_type == "2")
+            target_id = int(input("请输入目标ID（群聊ID/用户ID）："))
+            break
+        print("输入错误，请重新选择")
+    
+    msg_content = input("请输入消息内容：")
+    send_interval = float(input("请输入发送间隔（秒）："))
+    
+    while True:
+        send_count = int(input("\n请输入本次发送次数："))
+        send_batch(access_token, msg_content, send_count, send_interval, is_private, target_id)
+   
+        while True:
+            choice = input("是否继续发送？(y/n)：").strip().lower()
+            if choice in ["y", "n"]:
+                if choice == "n":
+                    print("程序结束")
+                    return
+                break
+            print("输入错误，请重新选择")
+        
+  
+        change_id = input("是否更换目标ID？(y/n)：").strip().lower()
+        if change_id == "y":
+            while True:
+                new_type = input("请选择新的发送类型（1-群聊 2-私信）：").strip()
+                if new_type in ["1", "2"]:
+                    is_private = (new_type == "2")
+                    target_id = int(input("请输入新的目标ID（群聊ID/用户ID）："))
+                    break
+                print("输入错误，请重新选择")
+        
+
+        change_content = input("是否更换消息内容？(y/n)：").strip().lower()
+        if change_content == "y":
+            msg_content = input("请输入新的消息内容：")
+        
+       
+        change_interval = input("是否更换发送间隔？(y/n)：").strip().lower()
+        if change_interval == "y":
+            send_interval = float(input("请输入新的发送间隔（秒）："))
+
+if __name__ == "__main__":
+    main()
